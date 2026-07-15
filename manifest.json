@@ -1,0 +1,21 @@
+{
+  "short_name": "銭湯なび",
+  "name": "今日の銭湯営業確認ナビ",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "index.html",
+  "background_color": "#f5f5f0",
+  "theme_color": "#1a508b",
+  "display": "standalone",
+  "orientation": "portrait"
+}
