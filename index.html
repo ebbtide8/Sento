@@ -46,13 +46,23 @@
       padding: 0;
       list-style: none;
     }
+    /* ボタン（カード）のデザイン調整 */
     .sento-card {
       background: white;
-      padding: 12px;
+      padding: 16px 12px;
       border-radius: 6px;
       text-align: center;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       font-weight: bold;
+      cursor: pointer; /* マウスを乗せたら指マークにする */
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent; /* スマホタップ時の青枠を消す */
+    }
+    /* タップ・ホバー時の動き */
+    .sento-card:active {
+      transform: scale(0.96);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     .open-card { border-left: 5px solid var(--open-color); }
     .closed-card { border-left: 5px solid var(--closed-color); opacity: 0.7; }
@@ -70,7 +80,7 @@
   <div id="loading">カレンダーから今日の定休日を取得しています...</div>
 
   <div id="content" style="display: none;">
-    <h2 class="open-header">🟢 本日営業中</h2>
+    <h2 class="open-header">🟢 本日営業中 <span style="font-size: 0.8rem; font-weight: normal; color: #666;">(タップで地図を表示)</span></h2>
     <ul id="open-list" class="sento-list"></ul>
 
     <h2 class="closed-header">🔴 本日定休日</h2>
@@ -78,24 +88,27 @@
   </div>
 
   <script>
-    // 1. 【設定】先ほどコピーしたGASのウェブアプリURLをここに貼り付けます
+    // 1. 【設定】GASのウェブアプリURLをここに貼り付けます
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzQIV74AblD3GTg1kAwKtSCq7PGKPNmK-3S43mSpjaUFtk6_pYAxJXnPD3l3qsnQ9bT/exec';
 
-    // 2. 【設定】行きつけの銭湯リスト（10〜20軒）
-    // カレンダーの予定名にここの「name」が含まれているかで判定します
+    // 2. 【設定】行きつけの銭湯リスト（10〜20軒分）
+    // mapUrl に、Googleマップの「共有URL」を登録します。
+    // （※URLがない場合は、登録しておいた名前でGoogleマップを検索するURLを自動生成するようにしています）
     const SENTO_MASTER = [
-      { name: '戎湯' },
-      { name: 'みどり温泉' },
-      { name: 'パール温泉' },
-      { name: '湯処あべの橋' },
-      { name: '朝日温泉' },
-      { name: '新マネキ温泉' },
-      { name: '生駒温泉' },
-      { name: 'いりふね温泉' },
-      { name: 'つるが丘温泉' },
-      { name: '不動の湯' },
-      { name: '末広温泉' },
-      // ... 必要に応じて10〜20軒分追加してください
+      { name: 'みどり温泉', mapUrl: 'https://maps.app.goo.gl/9ZpC4aK4R7WwBPhV6' }, // 実際の共有URLの例
+      { name: '駒川温泉', mapUrl: '' }, // 空欄の場合は自動検索になります
+      { name: '戎湯', mapUrl: 'https://maps.app.goo.gl/crXTYPPBuBpuaxd36' },
+      { name: 'パール温泉', mapUrl: 'https://maps.app.goo.gl/XXcEbyANJYCGH7NKA' },
+      { name: '湯処あべの橋', mapUrl: 'https://maps.app.goo.gl/Tf18ABjXU5a6xBFR6' },
+      { name: '朝日温泉（平野区）', mapUrl: 'https://maps.app.goo.gl/x7KUZboH9RdmXwfS9' },
+      { name: '朝日温泉（住吉区）', mapUrl: 'https://maps.app.goo.gl/w8erVyJYW24U8X2n6' },
+      { name: '新マネキ温泉', mapUrl: 'https://maps.app.goo.gl/jv8Su3BQ2CwBKJyp7' },
+      { name: '生駒温泉', mapUrl: 'https://maps.app.goo.gl/zCeLwdyCFYn3rTHQA' },
+      { name: 'いりふね温泉', mapUrl: 'https://maps.app.goo.gl/vzQKvTYkrPQkrQeJ9' },
+      { name: 'つるが丘温泉', mapUrl: 'https://maps.app.goo.gl/ExCvF3jRZFkVEG7VA' },
+      { name: '不動の湯', mapUrl: 'https://maps.app.goo.gl/2Mey4z1GFVXyKvRb6' },
+      { name: '末広温泉', mapUrl: 'https://maps.app.goo.gl/121mPdh2GhMq9WYC7' },
+      // ... 必要に応じて追加してください
     ];
 
     async function checkSentoStatus() {
@@ -105,14 +118,11 @@
         
         document.getElementById('current-date').textContent = `${data.date} 時点`;
         
-        // カレンダーの「今日の定休日イベント」に名前が含まれているかチェック
         const closedNames = data.closedEvents || [];
-        
         const openList = [];
         const closedList = [];
 
         SENTO_MASTER.forEach(sento => {
-          // 例：「みどり温泉 定休日」という予定があれば、名前に「みどり温泉」が含まれるので定休と判定
           const isClosed = closedNames.some(eventTitle => eventTitle.includes(sento.name));
           if (isClosed) {
             closedList.push(sento);
@@ -121,7 +131,6 @@
           }
         });
 
-        // 画面に描画
         renderList('open-list', openList, 'open-card');
         renderList('closed-list', closedList, 'closed-card');
 
@@ -145,17 +154,24 @@
         const li = document.createElement('li');
         li.className = `sento-card ${cardClass}`;
         li.textContent = sento.name;
+        
+        // クリックしたときの処理を設定
+        li.addEventListener('click', () => {
+          // もし個別のmapUrlが設定されていればそれを使い、
+          // 空欄であれば「Googleマップで店舗名＋銭湯」を直接検索するURLを動的に生成します
+          const targetUrl = sento.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sento.name + ' 銭湯')}`;
+          window.open(targetUrl, '_blank');
+        });
+
         container.appendChild(li);
       });
     }
 
-    // PWAサービスワーカーの登録
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js')
         .then(() => console.log('Service Worker Registered'));
     }
 
-    // 起動時に判定を実行
     checkSentoStatus();
   </script>
 </body>
