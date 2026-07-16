@@ -155,21 +155,23 @@
         li.className = `sento-card ${cardClass}`;
         li.textContent = sento.name;
         
-        // クリックしたときの処理を設定
+        // クリックしたときの処理
         li.addEventListener('click', () => {
-          // もし個別のmapUrlが設定されていればそれを使い、
-          // 空欄であれば「Googleマップで店舗名＋銭湯」を直接検索するURLを動的に生成します
-          const targetUrl = sento.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sento.name + ' 銭湯')}`;
+          let targetUrl = '';
+          
+          // mapUrlが設定されている（空文字ではない）場合は、そのURLをそのまま使う
+          if (sento.mapUrl && sento.mapUrl !== '') {
+            targetUrl = sento.mapUrl;
+          } else {
+            // 空文字の場合は、Googleマップで「店舗名＋銭湯」を検索するURLを生成する
+            targetUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sento.name + ' 銭湯')}`;
+          }
+          
           window.open(targetUrl, '_blank');
         });
-
+    
         container.appendChild(li);
       });
-    }
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log('Service Worker Registered'));
     }
 
     checkSentoStatus();
