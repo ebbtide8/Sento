@@ -1,182 +1,257 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>今日の銭湯なび</title>
-  <link rel="manifest" href="manifest.json">
-  <style>
-    :root {
-      --bg-color: #f5f5f0;
-      --primary-color: #1a508b;
-      --open-color: #2e7d32;
-      --closed-color: #c62828;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background-color: var(--bg-color);
-      color: #333;
-      margin: 0;
-      padding: 16px;
-    }
-    header {
-      background-color: var(--primary-color);
-      color: white;
-      text-align: center;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-    }
-    h1 { margin: 0; font-size: 1.5rem; }
-    .date-info { font-size: 0.9rem; margin-top: 4px; opacity: 0.9; }
-    
-    h2 {
-      font-size: 1.2rem;
-      border-bottom: 2px solid #ccc;
-      padding-bottom: 4px;
-      margin-top: 24px;
-    }
-    .open-header { color: var(--open-color); border-bottom-color: var(--open-color); }
-    .closed-header { color: var(--closed-color); border-bottom-color: var(--closed-color); }
-
-    .sento-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 12px;
-      padding: 0;
-      list-style: none;
-    }
-    /* ボタン（カード）のデザイン調整 */
-    .sento-card {
-      background: white;
-      padding: 16px 12px;
-      border-radius: 6px;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      font-weight: bold;
-      cursor: pointer; /* マウスを乗せたら指マークにする */
-      transition: transform 0.1s ease, box-shadow 0.1s ease;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent; /* スマホタップ時の青枠を消す */
-    }
-    /* タップ・ホバー時の動き */
-    .sento-card:active {
-      transform: scale(0.96);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    }
-    .open-card { border-left: 5px solid var(--open-color); }
-    .closed-card { border-left: 5px solid var(--closed-color); opacity: 0.7; }
-    
-    #loading { text-align: center; padding: 20px; font-size: 1.1rem; }
-  </style>
-</head>
-<body>
-
-  <header>
-    <h1>♨️ 今日の銭湯なび</h1>
-    <div id="current-date" class="date-info">情報を読み込み中...</div>
-  </header>
-
-  <div id="loading">カレンダーから今日の定休日を取得しています...</div>
-
-  <div id="content" style="display: none;">
-    <h2 class="open-header">🟢 本日営業中 <span style="font-size: 0.8rem; font-weight: normal; color: #666;">(タップで地図を表示)</span></h2>
-    <ul id="open-list" class="sento-list"></ul>
-
-    <h2 class="closed-header">🔴 本日定休日</h2>
-    <ul id="closed-list" class="sento-list"></ul>
-  </div>
-
-  <script>
-    // 1. 【設定】GASのウェブアプリURLをここに貼り付けます
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzQIV74AblD3GTg1kAwKtSCq7PGKPNmK-3S43mSpjaUFtk6_pYAxJXnPD3l3qsnQ9bT/exec';
-
-    // 2. 【設定】行きつけの銭湯リスト（10〜20軒分）
-    // mapUrl に、Googleマップの「共有URL」を登録します。
-    // （※URLがない場合は、登録しておいた名前でGoogleマップを検索するURLを自動生成するようにしています）
-    const SENTO_MASTER = [
-      { name: '戎湯', mapUrl: 'https://maps.app.goo.gl/crXTYPPBuBpuaxd36' },
-      { name: 'みどり温泉', mapUrl: 'https://maps.app.goo.gl/myhLtXFPKkkXZjG4A' },
-      { name: 'パール温泉', mapUrl: 'https://maps.app.goo.gl/XXcEbyANJYCGH7NKA' },
-      { name: '湯処あべの橋', mapUrl: 'https://maps.app.goo.gl/Tf18ABjXU5a6xBFR6' },
-      { name: 'いりふね温泉', mapUrl: 'https://maps.app.goo.gl/vzQKvTYkrPQkrQeJ9' },
-      { name: 'つるが丘温泉', mapUrl: 'https://maps.app.goo.gl/ExCvF3jRZFkVEG7VA' },
-      { name: '太平のゆ', mapUrl: 'https://maps.app.goo.gl/Gp9U4MELFnFNEfxC6' },
-      { name: '朝日温泉（平野区）', mapUrl: 'https://maps.app.goo.gl/x7KUZboH9RdmXwfS9' },
-      { name: '朝日温泉（住吉区）', mapUrl: 'https://maps.app.goo.gl/w8erVyJYW24U8X2n6' },
-      { name: '生駒温泉', mapUrl: 'https://maps.app.goo.gl/zCeLwdyCFYn3rTHQA' },
-      { name: '日之出湯', mapUrl: 'https://maps.app.goo.gl/pKZJfHw25JhPS9p87' },
-      { name: '不動の湯', mapUrl: 'https://maps.app.goo.gl/2Mey4z1GFVXyKvRb6' },
-      { name: '末広温泉', mapUrl: 'https://maps.app.goo.gl/121mPdh2GhMq9WYC7' },
-      { name: '新マネキ温泉', mapUrl: 'https://maps.app.goo.gl/jv8Su3BQ2CwBKJyp7' },
-      { name: '駒川温泉', mapUrl: '' }, // 空欄の場合は自動検索になります
-      // ... 必要に応じて追加してください
-    ];
-
-    async function checkSentoStatus() {
-      try {
-        const response = await fetch(GAS_API_URL);
-        const data = await response.json();
-        
-        document.getElementById('current-date').textContent = `${data.date} 時点`;
-        
-        const closedNames = data.closedEvents || [];
-        const openList = [];
-        const closedList = [];
-
-        SENTO_MASTER.forEach(sento => {
-          const isClosed = closedNames.some(eventTitle => eventTitle.includes(sento.name));
-          if (isClosed) {
-            closedList.push(sento);
-          } else {
-            openList.push(sento);
-          }
-        });
-
-        renderList('open-list', openList, 'open-card');
-        renderList('closed-list', closedList, 'closed-card');
-
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('content').style.display = 'block';
-
-      } catch (error) {
-        console.error(error);
-        document.getElementById('loading').textContent = 'データの取得に失敗しました。カレンダー連携の設定を確認してください。';
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>今日の銭湯なび</title>
+    <link rel="manifest" href="manifest.json" />
+    <style>
+      :root {
+        --bg-color: #f5f5f0;
+        --primary-color: #1a508b;
+        --open-color: #2e7d32;
+        --closed-color: #c62828;
       }
-    }
-
-    function renderList(elementId, list, cardClass) {
-      const container = document.getElementById(elementId);
-      container.innerHTML = '';
-      if (list.length === 0) {
-        container.innerHTML = '<li style="grid-column: 1/-1; text-align: center; color: #777; padding: 10px;">該当なし</li>';
-        return;
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background-color: var(--bg-color);
+        color: #333;
+        margin: 0;
+        padding: 16px;
       }
-      list.forEach(sento => {
-        const li = document.createElement('li');
-        li.className = `sento-card ${cardClass}`;
-        li.textContent = sento.name;
-        
-        // クリックしたときの処理
-        li.addEventListener('click', () => {
-          let targetUrl = '';
-          
-          // mapUrlが設定されている（空文字ではない）場合は、そのURLをそのまま使う
-          if (sento.mapUrl && sento.mapUrl !== '') {
-            targetUrl = sento.mapUrl;
-          } else {
-            // 空文字の場合は、Googleマップで「店舗名＋銭湯」を検索するURLを生成する
-            targetUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sento.name + ' 銭湯')}`;
-          }
-          
-          window.open(targetUrl, '_blank');
-        });
-    
-        container.appendChild(li);
-      });
-    }
+      header {
+        background-color: var(--primary-color);
+        color: white;
+        text-align: center;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.5rem;
+      }
+      .date-info {
+        font-size: 0.9rem;
+        margin-top: 4px;
+        opacity: 0.9;
+      }
 
-    checkSentoStatus();
-  </script>
-</body>
+      h2 {
+        font-size: 1.2rem;
+        border-bottom: 2px solid #ccc;
+        padding-bottom: 4px;
+        margin-top: 24px;
+      }
+      .open-header {
+        color: var(--open-color);
+        border-bottom-color: var(--open-color);
+      }
+      .closed-header {
+        color: var(--closed-color);
+        border-bottom-color: var(--closed-color);
+      }
+
+      .sento-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+        padding: 0;
+        list-style: none;
+      }
+      /* ボタン（カード）のデザイン調整 */
+      .sento-card {
+        background: white;
+        padding: 16px 12px;
+        border-radius: 6px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        font-weight: bold;
+        cursor: pointer; /* マウスを乗せたら指マークにする */
+        transition:
+          transform 0.1s ease,
+          box-shadow 0.1s ease;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent; /* スマホタップ時の青枠を消す */
+      }
+      /* タップ・ホバー時の動き */
+      .sento-card:active {
+        transform: scale(0.96);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+      .open-card {
+        border-left: 5px solid var(--open-color);
+      }
+      .closed-card {
+        border-left: 5px solid var(--closed-color);
+        opacity: 0.7;
+      }
+
+      #loading {
+        text-align: center;
+        padding: 20px;
+        font-size: 1.1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>♨️ 今日の銭湯なび</h1>
+      <div id="current-date" class="date-info">情報を読み込み中...</div>
+    </header>
+
+    <div id="loading">カレンダーから今日の定休日を取得しています...</div>
+
+    <div id="content" style="display: none">
+      <h2 class="open-header">
+        🟢 本日営業中
+        <span style="font-size: 0.8rem; font-weight: normal; color: #666"
+          >(タップで地図を表示)</span
+        >
+      </h2>
+      <ul id="open-list" class="sento-list"></ul>
+
+      <h2 class="closed-header">🔴 本日定休日</h2>
+      <ul id="closed-list" class="sento-list"></ul>
+    </div>
+
+    <script>
+      // 1. 【設定】GASのウェブアプリURLをここに貼り付けます
+      const GAS_API_URL =
+        "https://script.google.com/macros/s/AKfycbzQIV74AblD3GTg1kAwKtSCq7PGKPNmK-3S43mSpjaUFtk6_pYAxJXnPD3l3qsnQ9bT/exec";
+
+      // 2. 【設定】行きつけの銭湯リスト（10〜20軒分）
+      // mapUrl に、Googleマップの「共有URL」を登録します。
+      // （※URLがない場合は、登録しておいた名前でGoogleマップを検索するURLを自動生成するようにしています）
+      const SENTO_MASTER = [
+        { name: "戎湯", mapUrl: "https://maps.app.goo.gl/crXTYPPBuBpuaxd36" },
+        {
+          name: "みどり温泉",
+          mapUrl: "https://maps.app.goo.gl/myhLtXFPKkkXZjG4A",
+        },
+        {
+          name: "パール温泉",
+          mapUrl: "https://maps.app.goo.gl/XXcEbyANJYCGH7NKA",
+        },
+        {
+          name: "湯処あべの橋",
+          mapUrl: "https://maps.app.goo.gl/Tf18ABjXU5a6xBFR6",
+        },
+        {
+          name: "いりふね温泉",
+          mapUrl: "https://maps.app.goo.gl/vzQKvTYkrPQkrQeJ9",
+        },
+        {
+          name: "つるが丘温泉",
+          mapUrl: "https://maps.app.goo.gl/ExCvF3jRZFkVEG7VA",
+        },
+        {
+          name: "太平のゆ",
+          mapUrl: "https://maps.app.goo.gl/Gp9U4MELFnFNEfxC6",
+        },
+        {
+          name: "朝日温泉（平野区）",
+          mapUrl: "https://maps.app.goo.gl/x7KUZboH9RdmXwfS9",
+        },
+        {
+          name: "朝日温泉（住吉区）",
+          mapUrl: "https://maps.app.goo.gl/w8erVyJYW24U8X2n6",
+        },
+        {
+          name: "生駒温泉",
+          mapUrl: "https://maps.app.goo.gl/zCeLwdyCFYn3rTHQA",
+        },
+        { name: "橘湯", mapUrl: "https://maps.app.goo.gl/81HWXvnPfmQV4jvv8" },
+        {
+          name: "日之出湯",
+          mapUrl: "https://maps.app.goo.gl/pKZJfHw25JhPS9p87",
+        },
+        {
+          name: "不動の湯",
+          mapUrl: "https://maps.app.goo.gl/2Mey4z1GFVXyKvRb6",
+        },
+        {
+          name: "末広温泉",
+          mapUrl: "https://maps.app.goo.gl/121mPdh2GhMq9WYC7",
+        },
+        {
+          name: "新マネキ温泉",
+          mapUrl: "https://maps.app.goo.gl/jv8Su3BQ2CwBKJyp7",
+        },
+        { name: "駒川温泉", mapUrl: "" }, // 空欄の場合は自動検索になります
+        // ... 必要に応じて追加してください
+      ];
+
+      async function checkSentoStatus() {
+        try {
+          const response = await fetch(GAS_API_URL);
+          const data = await response.json();
+
+          document.getElementById("current-date").textContent =
+            `${data.date} 時点`;
+
+          const closedNames = data.closedEvents || [];
+          const openList = [];
+          const closedList = [];
+
+          SENTO_MASTER.forEach((sento) => {
+            const isClosed = closedNames.some((eventTitle) =>
+              eventTitle.includes(sento.name),
+            );
+            if (isClosed) {
+              closedList.push(sento);
+            } else {
+              openList.push(sento);
+            }
+          });
+
+          renderList("open-list", openList, "open-card");
+          renderList("closed-list", closedList, "closed-card");
+
+          document.getElementById("loading").style.display = "none";
+          document.getElementById("content").style.display = "block";
+        } catch (error) {
+          console.error(error);
+          document.getElementById("loading").textContent =
+            "データの取得に失敗しました。カレンダー連携の設定を確認してください。";
+        }
+      }
+
+      function renderList(elementId, list, cardClass) {
+        const container = document.getElementById(elementId);
+        container.innerHTML = "";
+        if (list.length === 0) {
+          container.innerHTML =
+            '<li style="grid-column: 1/-1; text-align: center; color: #777; padding: 10px;">該当なし</li>';
+          return;
+        }
+        list.forEach((sento) => {
+          const li = document.createElement("li");
+          li.className = `sento-card ${cardClass}`;
+          li.textContent = sento.name;
+
+          // クリックしたときの処理
+          li.addEventListener("click", () => {
+            let targetUrl = "";
+
+            // mapUrlが設定されている（空文字ではない）場合は、そのURLをそのまま使う
+            if (sento.mapUrl && sento.mapUrl !== "") {
+              targetUrl = sento.mapUrl;
+            } else {
+              // 空文字の場合は、Googleマップで「店舗名＋銭湯」を検索するURLを生成する
+              targetUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sento.name + " 銭湯")}`;
+            }
+
+            window.open(targetUrl, "_blank");
+          });
+
+          container.appendChild(li);
+        });
+      }
+
+      checkSentoStatus();
+    </script>
+  </body>
 </html>
